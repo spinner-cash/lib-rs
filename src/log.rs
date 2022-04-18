@@ -15,7 +15,7 @@ pub struct LogState {
     /// Stores the offset (starting position) to each buckets.
     buckets: Vec<Offset>,
     /// Number of entries in the log.
-    size: u64,
+    pub size: u64,
     /// Number of entries in each bucket (must not be changed once initialized).
     pub bucket_size: usize,
     /// Max number of buckets, once reached the log is full and any writes will be rejected.
@@ -25,16 +25,10 @@ pub struct LogState {
 }
 
 /// A generic log parameterized by its storage type `S` and log entry type `T`.
-pub struct Log<S, T> {
-    pub state: LogState,
+pub struct Log<'a, S, T> {
+    pub state: &'a mut LogState,
     storage: S,
     element: std::marker::PhantomData<T>,
-}
-
-impl<S, T> From<Log<S, T>> for LogState {
-    fn from(log: Log<S, T>) -> LogState {
-        log.state
-    }
 }
 
 impl LogState {
@@ -50,18 +44,9 @@ impl LogState {
     }
 }
 
-impl<S: StorageStack, T> Log<S, T> {
-    /// Return an empty `Log` with initial `bucket_size` and `max_buckets` settings.
-    /// Its starting position is the current offset of the [StorageStack] `S`.
-    pub fn new(bucket_size: usize, max_buckets: usize, storage: S) -> Self {
-        Self::new_with(
-            LogState::new(storage.offset(), bucket_size, max_buckets),
-            storage,
-        )
-    }
-
+impl<'a, S: StorageStack, T> Log<'a, S, T> {
     /// Return `Log` by initializing it with a [LogState] and a [StorageStack].
-    pub fn new_with(state: LogState, storage: S) -> Self {
+    pub fn new(state: &'a mut LogState, storage: S) -> Self {
         Self {
             state,
             storage,
@@ -209,12 +194,14 @@ mod tests {
 
     #[test]
     fn test_log_int() {
-        let mut log: Log<Stack, (u8,)> = Log::new(3, 0, Stack::new());
+        let mut state: LogState = LogState::new(0, 3, 0);
+        let mut log: Log<Stack, (u8,)> = Log::new(&mut state, Stack::new());
         assert_eq!(log.size(), 0);
         assert!(log.push((0,)).is_none());
         assert!(log.get(0).is_none());
 
-        let mut log: Log<Stack, (u8,)> = Log::new(4, 2, Stack::new());
+        let mut state: LogState = LogState::new(0, 4, 2);
+        let mut log: Log<Stack, (u8,)> = Log::new(&mut state, Stack::new());
         for i in 0..8 {
             assert!(log.push((i,)).is_some());
             assert_eq!(log.get(i as u64), Some((i,)));
@@ -229,7 +216,8 @@ mod tests {
 
     #[test]
     fn test_log_str() {
-        let mut log: Log<Stack, (String,)> = Log::new(4, 100, Stack::new());
+        let mut state: LogState = LogState::new(0, 4, 100);
+        let mut log: Log<Stack, (String,)> = Log::new(&mut state, Stack::new());
         for i in 0..108 {
             assert!(log.push((format!("{}", i),)).is_some());
         }

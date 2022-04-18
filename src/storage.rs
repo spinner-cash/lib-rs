@@ -139,12 +139,12 @@ pub trait StorageStack {
     /// Return the current read/write offset.
     fn offset(&self) -> Offset;
 
-    /// Push a value to the end of of the storage stack.
+    /// Push a value to the end of the stack.
     fn push<T>(&mut self, t: T) -> Result<(), io::Error>
     where
         T: candid::utils::ArgumentEncoder;
 
-    /// Pop a value from the end of the storage stack.
+    /// Pop a value from the end of the stack.
     /// In case of `OutOfBounds` error, offset is not changed.
     /// In case of Candid decoding error, offset may be changed.
     fn pop<T>(&mut self) -> Result<T, io::Error>
@@ -152,7 +152,7 @@ pub trait StorageStack {
         T: for<'de> candid::utils::ArgumentDecoder<'de>;
 
     /// Seek to the start of previous value by changing the offset.
-    /// This is similar to `pop` but without actually reading the actual value.
+    /// This is similar to `pop` but without reading the actual value.
     fn seek_prev(&mut self) -> Result<(), io::Error>;
 }
 
