@@ -7,7 +7,7 @@
 //! * [StableStorage] supports sequential read & write of bytes by implementing [io::Read] and [io::Write] traits.
 //!
 //! * [StorageStack] provides a stack interface allowing arbitrary values to be pushed onto and popped off the stable memory.
-//!   [StableStorage] implements this trait. 
+//!   [StableStorage] implements this trait.
 //!   Being a trait it allows alternative implementations, for example in testing code.
 //!
 //! [ic-cdk]: https://docs.rs/ic-cdk/latest
@@ -224,5 +224,80 @@ impl io::Read for StableStorage {
         stable::stable64_read(self.offset, read_buf);
         self.offset += read_buf.len() as u64;
         Ok(read_buf.len())
+    }
+}
+
+pub mod test {
+    use super::*;
+    use candid::encode_args;
+    use std::cell::RefCell;
+    use std::io;
+    use std::rc::Rc;
+
+    /// A vector-based implementation of [StorageStack], used for testing purpose.
+    #[derive(Clone, Default)]
+    pub struct Stack {
+        stack: Rc<RefCell<Vec<Vec<u8>>>>,
+        offset: Offset,
+        index: usize,
+    }
+
+    impl StorageStack for Stack {
+        fn new_with(&self, offset: Offset) -> Stack {
+            let mut s = 0;
+            let mut index = 0;
+            while s < offset {
+                s += self.stack.as_ref().borrow()[index].len() as Offset;
+                index += 1;
+            }
+            Stack {
+                stack: Rc::clone(&self.stack),
+                offset,
+                index,
+            }
+        }
+
+        fn offset(&self) -> Offset {
+            self.offset
+        }
+
+        /// Save a value to the end of stable memory.
+        fn push<T>(&mut self, t: T) -> Result<(), io::Error>
+        where
+            T: candid::utils::ArgumentEncoder,
+        {
+            let bytes: Vec<u8> = encode_args(t).unwrap();
+            self.offset += bytes.len() as Offset;
+            let mut stack = self.stack.borrow_mut();
+            if stack.len() > self.index {
+                stack[self.index] = bytes;
+            } else {
+                stack.push(bytes)
+            }
+            self.index += 1;
+            Ok(())
+        }
+
+        /// Pop a value from the end of stable memory.
+        /// In case of `OutOfBounds` error, offset is not changed.
+        /// In case of Candid decoding error, offset will be changed anyway.
+        fn pop<T>(&mut self) -> Result<T, io::Error>
+        where
+            T: for<'de> candid::utils::ArgumentDecoder<'de>,
+        {
+            self.seek_prev()?;
+            let bytes = self.stack.borrow()[self.index].clone();
+            let mut de = candid::de::IDLDeserialize::new(&bytes).unwrap();
+            Ok(candid::utils::ArgumentDecoder::decode(&mut de).unwrap())
+        }
+
+        fn seek_prev(&mut self) -> Result<(), io::Error> {
+            assert!(self.index > 0);
+            let bytes = self.stack.borrow()[self.index - 1].clone();
+            self.index -= 1;
+            assert!(self.offset >= bytes.len() as Offset);
+            self.offset -= bytes.len() as Offset;
+            Ok(())
+        }
     }
 }

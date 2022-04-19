@@ -27,7 +27,7 @@ pub struct LogState {
 /// A generic log parameterized by its storage type `S` and log entry type `T`.
 pub struct Log<'a, S, T> {
     pub state: &'a mut LogState,
-    storage: S,
+    storage: &'a mut S,
     element: std::marker::PhantomData<T>,
 }
 
@@ -46,7 +46,7 @@ impl LogState {
 
 impl<'a, S: StorageStack, T> Log<'a, S, T> {
     /// Return `Log` by initializing it with a [LogState] and a [StorageStack].
-    pub fn new(state: &'a mut LogState, storage: S) -> Self {
+    pub fn new(state: &'a mut LogState, storage: &'a mut S) -> Self {
         Self {
             state,
             storage,
@@ -112,96 +112,20 @@ impl<'a, S: StorageStack, T> Log<'a, S, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use candid::encode_args;
-    use std::cell::RefCell;
-    use std::io;
-    use std::rc::Rc;
-
-    struct Stack {
-        stack: Rc<RefCell<Vec<Vec<u8>>>>,
-        offset: Offset,
-        index: usize,
-    }
-
-    impl Stack {
-        fn new() -> Self {
-            Stack {
-                stack: Rc::new(RefCell::new(Vec::new())),
-                offset: 0,
-                index: 0,
-            }
-        }
-    }
-
-    impl StorageStack for Stack {
-        fn new_with(&self, offset: Offset) -> Stack {
-            let mut s = 0;
-            let mut index = 0;
-            while s < offset {
-                s += self.stack.as_ref().borrow()[index].len() as Offset;
-                index += 1;
-            }
-            Stack {
-                stack: Rc::clone(&self.stack),
-                offset,
-                index,
-            }
-        }
-
-        fn offset(&self) -> Offset {
-            self.offset
-        }
-
-        /// Save a value to the end of stable memory.
-        fn push<T>(&mut self, t: T) -> Result<(), io::Error>
-        where
-            T: candid::utils::ArgumentEncoder,
-        {
-            let bytes: Vec<u8> = encode_args(t).unwrap();
-            self.offset += bytes.len() as Offset;
-            let mut stack = self.stack.borrow_mut();
-            if stack.len() > self.index {
-                stack[self.index] = bytes;
-            } else {
-                stack.push(bytes)
-            }
-            self.index += 1;
-            Ok(())
-        }
-
-        /// Pop a value from the end of stable memory.
-        /// In case of `OutOfBounds` error, offset is not changed.
-        /// In case of Candid decoding error, offset will be changed anyway.
-        fn pop<T>(&mut self) -> Result<T, io::Error>
-        where
-            T: for<'de> candid::utils::ArgumentDecoder<'de>,
-        {
-            self.seek_prev()?;
-            let bytes = self.stack.borrow()[self.index].clone();
-            let mut de = candid::de::IDLDeserialize::new(&bytes).unwrap();
-            Ok(candid::utils::ArgumentDecoder::decode(&mut de).unwrap())
-        }
-
-        fn seek_prev(&mut self) -> Result<(), io::Error> {
-            assert!(self.index > 0);
-            let bytes = self.stack.borrow()[self.index - 1].clone();
-            self.index -= 1;
-            assert!(self.offset >= bytes.len() as Offset);
-            self.offset -= bytes.len() as Offset;
-            Ok(())
-        }
-    }
+    use crate::storage::test::Stack;
 
     #[test]
     fn test_log_int() {
         let mut state: LogState = LogState::new(0, 3, 0);
-        let mut log: Log<Stack, (u8,)> = Log::new(&mut state, Stack::new());
+        let mut stack = Stack::default();
+        let mut log: Log<Stack, (u8,)> = Log::new(&mut state, &mut stack);
         assert_eq!(log.size(), 0);
         assert!(log.push((0,)).is_none());
         assert!(log.get(0).is_none());
 
         let mut state: LogState = LogState::new(0, 4, 2);
-        let mut log: Log<Stack, (u8,)> = Log::new(&mut state, Stack::new());
+        let mut stack = Stack::default();
+        let mut log: Log<Stack, (u8,)> = Log::new(&mut state, &mut stack);
         for i in 0..8 {
             assert!(log.push((i,)).is_some());
             assert_eq!(log.get(i as u64), Some((i,)));
@@ -217,7 +141,8 @@ mod tests {
     #[test]
     fn test_log_str() {
         let mut state: LogState = LogState::new(0, 4, 100);
-        let mut log: Log<Stack, (String,)> = Log::new(&mut state, Stack::new());
+        let mut stack = Stack::default();
+        let mut log: Log<Stack, (String,)> = Log::new(&mut state, &mut stack);
         for i in 0..108 {
             assert!(log.push((format!("{}", i),)).is_some());
         }
