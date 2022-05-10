@@ -5,8 +5,8 @@ More specifically it is used by [Spinner.Cash], a decentralized layer-2 protocol
 
 - [x] Stable storage.
 - [x] Append-only log using stable storage.
+- [x] Flat merkle tree.
 - [ ] Event queue.
-- [ ] Flat merkle tree.
 
 All source code is original and released under [GPLv3](./LICENSE).
 Please make sure you understand the requirement and risk before using them in your own projects.
