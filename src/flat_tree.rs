@@ -333,23 +333,21 @@ impl<'a, T: Merkleable> FlatTree<'a, T> {
 }
 
 #[cfg(test)]
-fn debug_print<'a, T: Merkleable>(tree: &FlatTree<'a, T>)
+fn debug_print<T: Merkleable>(tree: &FlatTree<'_, T>)
 where
     T: std::fmt::Debug,
 {
     let w = tree.width();
-    let mut i = 0;
-    for level in tree_of(Width(w)) {
+    for (i, level) in tree_of(Width(w)).into_iter().enumerate() {
         match level {
             None => println!(),
             Some(Level(l)) => {
                 for _ in 0..2 * l {
                     print!(" ")
                 }
-                println!("{:?}", tree.read(i));
+                println!("{:?}", tree.read(i as u64));
             }
         }
-        i += 1
     }
 }
 
@@ -587,7 +585,7 @@ mod tests {
         fn zeros(i: usize) -> String {
             let mut s = "".to_string();
             for _ in 0..i {
-                s.push_str(",")
+                s.push(',')
             }
             s
         }

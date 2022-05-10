@@ -1,5 +1,9 @@
 # Spinner
 
+[![Crates.io](https://img.shields.io/crates/v/spnr-lib.svg)](https://crates.io/crates/spnr-lib)
+[![Docs.rs](https://docs.rs/spnr-lib/badge.svg)](https://docs.rs/spnr-lib)
+[![CI](https://github.com/spinner-cash/lib-rs/workflows/CI/badge.svg)](https://github.com/spinner-cash/lib-rs/actions)
+
 Rust library for building smart contracts on the [Internet Computer].
 More specifically it is used by [Spinner.Cash], a decentralized layer-2 protocol enabling private transactions for ICP and BTC.
 
