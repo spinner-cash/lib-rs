@@ -12,6 +12,7 @@
 //! [Internet Computer]: https://wiki.internetcomputer.org
 //! [Spinner.Cash]: https://github.com/spinner-cash
 
+pub mod event_queue;
 pub mod flat_tree;
 pub mod log;
 pub mod storage;
