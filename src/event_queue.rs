@@ -1,7 +1,7 @@
 /// An event queue ordered by expiry time.
 ///
 /// Each event has an id and status, and they can be inserted/looked up/purged from the queue.
-use ic_cdk::export::candid::CandidType;
+use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use std::collections::{btree_map::Entry, BTreeMap};
 use std::{error, fmt};
@@ -126,7 +126,7 @@ impl<I: Ord, T> EventQueue<I, T> {
     }
 
     /// Remove all events with an expiry less than the given expiry.
-    /// This operation is `O(log(n))`.
+    /// This operation is `O(log(n))+O(m)`, where `m` is the number of events removed.
     pub fn purge_expired(&mut self, expiry: u64)
     where
         I: Default,
@@ -135,13 +135,28 @@ impl<I: Ord, T> EventQueue<I, T> {
             expiry,
             nonce: I::default(),
         };
-        self.events = self.events.split_off(&key);
+        let to_keep = self.events.split_off(&key);
+        for to_remove in self.events.keys() {
+            self.index.remove(&to_remove.nonce);
+        }
+        self.events = to_keep;
     }
 
     /// Lookup event status given an event id.
     /// This operation is `O(log(n))`.
     pub fn get(&self, id: &EventId<I>) -> Option<&T> {
         self.events.get(id)
+    }
+
+    /// Lookup event status given an event id.
+    /// This operation is `O(log(n))`.
+    pub fn remove(&mut self, id: &EventId<I>) -> Option<T> {
+        if let Some(value) = self.events.remove(id) {
+            self.index.remove(&id.nonce);
+            Some(value)
+        } else {
+            None
+        }
     }
 
     /// Modify the status of an event given its id.
@@ -158,10 +173,21 @@ impl<I: Ord, T> EventQueue<I, T> {
             .and_then(|id| self.events.get(id).map(|e| (id, e)))
     }
 
+    /// Return max capacity.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
     /// Return number of events in the queue.
     /// This operation is constant time.
     pub fn len(&self) -> usize {
         self.events.len()
+    }
+
+    /// Return true if the queue is at its max capacity.
+    /// This operation is constant time.
+    pub fn is_full(&self) -> bool {
+        self.events.len() == self.capacity
     }
 
     /// Return true if the queue is empty.
@@ -195,7 +221,7 @@ mod test {
     use super::*;
     use assert_matches::*;
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     enum Item {
         Begin(u8),
         Middle(u8),
@@ -255,6 +281,8 @@ mod test {
         assert!(q.selfcheck());
         assert_eq!(q.len(), 7);
 
+        let mut p = q.clone();
+
         // test purge
         q.purge(1, is_begin);
         assert_eq!(q.len(), 6);
@@ -268,5 +296,15 @@ mod test {
         q.purge(2, is_begin);
         assert_eq!(q.len(), 0);
         assert!(q.selfcheck());
+
+        // test purge_expired
+        println!("{:?}", p.iter().collect::<Vec<_>>());
+        p.purge_expired(1);
+        assert_eq!(p.len(), 5);
+        assert!(p.selfcheck());
+
+        p.purge_expired(2);
+        assert_eq!(p.len(), 0);
+        assert!(p.selfcheck());
     }
 }

@@ -6,7 +6,7 @@
 //! We can first seek to the right bucket, then seek to an index within the bucket.
 //! During writes, if the current bucket is full, a new bucket will be created to store the next entry.
 use crate::storage::*;
-use ic_cdk::export::candid::CandidType;
+use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
 /// The state and configuration of the log.

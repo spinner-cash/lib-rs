@@ -72,12 +72,12 @@ impl Default for StableStorage {
     fn default() -> Self {
         let mut storage = Self {
             offset: 0,
-            capacity: stable::stable64_size(),
+            capacity: stable::stable_size(),
         };
         if storage.capacity > 0 {
             let cap = storage.capacity << 16;
             let mut bytes = [0; 8];
-            stable::stable64_read(cap - 8, &mut bytes);
+            stable::stable_read(cap - 8, &mut bytes);
             storage.offset = u64::from_le_bytes(bytes);
         }
         storage
@@ -88,7 +88,7 @@ impl StableStorage {
     /// Attempt to grow the memory by adding new pages.
     fn grow(&mut self, added_pages: u64) -> Result<(), StorageError> {
         let old_page_count =
-            stable::stable64_grow(added_pages).map_err(|_| StorageError::OutOfMemory)?;
+            stable::stable_grow(added_pages).map_err(|_| StorageError::OutOfMemory)?;
         self.capacity = old_page_count + added_pages;
         Ok(())
     }
@@ -108,7 +108,7 @@ impl StableStorage {
         }
         let bytes = self.offset.to_le_bytes();
         io::Write::write(&mut self, &bytes)?;
-        stable::stable64_write(cap - 8, &bytes);
+        stable::stable_write(cap - 8, &bytes);
         Ok(())
     }
 }
@@ -119,7 +119,7 @@ impl io::Write for StableStorage {
             self.grow((buf.len() >> 16) as u64 + 1)?
         }
 
-        stable::stable64_write(self.offset, buf);
+        stable::stable_write(self.offset, buf);
         self.offset += buf.len() as u64;
         Ok(buf.len())
     }
@@ -187,7 +187,7 @@ impl StorageStack for StableStorage {
         self.seek_prev()?;
         let size = (end - self.offset) as usize;
         let mut bytes = vec![0; size];
-        stable::stable64_read(self.offset, &mut bytes);
+        stable::stable_read(self.offset, &mut bytes);
         let mut de = candid::de::IDLDeserialize::new(&bytes).map_err(StorageError::Candid)?;
         let res = candid::utils::ArgumentDecoder::decode(&mut de).map_err(StorageError::Candid)?;
         Ok(res)
@@ -199,7 +199,7 @@ impl StorageStack for StableStorage {
         }
         let mut bytes = [0; 8];
         let end = self.offset - 8;
-        stable::stable64_read(end, &mut bytes);
+        stable::stable_read(end, &mut bytes);
         let start = u64::from_le_bytes(bytes);
         if start > end {
             return Err(StorageError::OutOfBounds.into());
@@ -221,7 +221,7 @@ impl io::Read for StableStorage {
         } else {
             buf
         };
-        stable::stable64_read(self.offset, read_buf);
+        stable::stable_read(self.offset, read_buf);
         self.offset += read_buf.len() as u64;
         Ok(read_buf.len())
     }
