@@ -11,7 +11,7 @@
 //!   Being a trait it allows alternative implementations, for example in testing code.
 //!
 //! [ic-cdk]: https://docs.rs/ic-cdk/latest
-use ic_cdk::api::stable;
+use ic_cdk::stable;
 use std::{error, fmt, io};
 
 /// Possible errors when dealing with stable memory.
